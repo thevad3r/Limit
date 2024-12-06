@@ -1,74 +1,104 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import { View } from "react-native";
+import FadeView from "@/components/FadeView";
+import { CreateCard } from "@/components/CreateCard";
+import { Collapsible } from "@/components/Collapsible";
+import { Card } from "@/components/Card";
+import { clear, getItem, setItem } from "@/scripts/async-storage";
+import React, { useEffect } from 'react';
+import { dateIsExpired, dateToNumber } from "@/scripts/date-check";
+import { cancelAllScheduledNotificationsAsync, getAllScheduledNotificationsAsync } from "expo-notifications";
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+export default function Index() {
 
-export default function HomeScreen() {
+  const [activeTasks, setActiveTasks] = React.useState<any[]>([]);
+  const [expiredTasks, setExpiredTasks] = React.useState<any[]>([]);
+  const [completedTasks, setCompletedTasks] = React.useState<any[]>([]);
+
+  const [isActiveOpen, setIsActiveOpen] = React.useState(true);
+  const [isExpiredOpen, setIsExpiredOpen] = React.useState(true);
+  const [isCompletedOpen, setIsCompletedOpen] = React.useState(true);
+
+  const findTasks = async () => {
+    
+    const result: any[] = await getItem('tasks');
+
+    if(result) {
+      const completed: any[] = [];
+      const expired: any[] = [];
+      const active: any[] = [];
+
+      result.forEach(item => {
+        if(item.isCompleted) {
+          completed.push(item);
+        }
+        else if(dateIsExpired(item.date)) {
+          expired.push(item);
+        }
+        else active.push(item);
+      });
+      
+      completed.sort((a, b) => dateToNumber(b.date) - dateToNumber(a.date));
+      active.sort((a, b) => dateToNumber(a.date) - dateToNumber(b.date));
+      expired.sort((a, b) => dateToNumber(a.date) - dateToNumber(b.date));
+      setCompletedTasks(completed);
+      setExpiredTasks(expired);
+      setActiveTasks(active);
+    }
+  };
+
+  const loadCollapseStates = async () => {
+    const collapseStates = await getItem('collapseStates');
+    if (collapseStates) {
+      setIsActiveOpen(collapseStates.isActiveOpen);
+      setIsExpiredOpen(collapseStates.isExpiredOpen);
+      setIsCompletedOpen(collapseStates.isCompletedOpen);
+    }
+  };
+
+  const saveCollapseStates = async () => {
+    const collapseStates = {
+      isActiveOpen,
+      isExpiredOpen,
+      isCompletedOpen,
+    };
+    await setItem('collapseStates', collapseStates);
+  };
+
+  useEffect(() => {
+    findTasks();
+    loadCollapseStates();
+  }, [])
+
+  useEffect(() => {
+    saveCollapseStates();
+  }, [isActiveOpen, isExpiredOpen, isCompletedOpen]);
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12'
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <FadeView>
+      <View style={{gap: 64}}>
+        <CreateCard/>
+        { expiredTasks.length !== 0 &&
+        <Collapsible title={'Просроченные задачи'} isOpen={isExpiredOpen} setIsOpen={setIsExpiredOpen}>
+          {expiredTasks.map((item) => (
+            <Card key={item.id} id={item.id} title={item.title} description={item.description} date={item.date} isCompleted={item.isCompleted}/>
+          ))}
+        </Collapsible>
+        }
+        { activeTasks.length !== 0 &&
+        <Collapsible title={'Текущие задачи'} isOpen={isActiveOpen} setIsOpen={setIsActiveOpen}>
+          {activeTasks.map((item) => (
+            <Card key={item.id} id={item.id} title={item.title} description={item.description} date={item.date} isCompleted={item.isCompleted}/>
+          ))}
+        </Collapsible>
+        }
+        { completedTasks.length !== 0 &&
+        <Collapsible title={'Завершенные задачи'} isOpen={isCompletedOpen} setIsOpen={setIsCompletedOpen}>
+          {completedTasks.map((item) => (
+            <Card key={item.id} id={item.id} title={item.title} description={item.description} date={item.date} isCompleted={item.isCompleted}/>
+          ))}
+        </Collapsible>
+        }
+      </View>
+    </FadeView>
   );
 }
-
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
